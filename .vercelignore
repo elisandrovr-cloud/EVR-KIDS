@@ -1,0 +1,30 @@
+# Vercel solo sirve la versión web ligera (app.py), que usa únicamente la
+# librería estándar de Python. Se excluye requirements.txt para que Vercel NO
+# instale streamlit/moviepy/ffmpeg/pandas (~470 MB, por encima del límite de
+# tamaño de las funciones serverless). La app completa se despliega con Docker,
+# Render o Streamlit Community Cloud (ver README, sección "Despliegue").
+requirements.txt
+Dockerfile
+.dockerignore
+render.yaml
+packages.txt
+.streamlit/
+streamlit_app.py
+cli.py
+ejemplo_serie.py
+compositor_video.py
+control_calidad.py
+generador_imagenes.py
+generador_miniaturas.py
+generador_series.py
+generador_shorts.py
+musica_efectos.py
+produccion.py
+tts_avanzado.py
+tests/
+assets/
+datos/
+salida/
+trabajo/
+cache/
+.env

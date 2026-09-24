@@ -38,6 +38,7 @@ emociones…), listos para subir a YouTube como contenido **Made for Kids**:
 16. [Made for Kids, licencias y políticas de YouTube](#16-made-for-kids-licencias-y-políticas-de-youtube)
 17. [Rendimiento y solución de problemas](#17-rendimiento-y-solución-de-problemas)
 18. [Pruebas](#18-pruebas)
+19. [Despliegue (Vercel, Docker, Render, Streamlit Cloud)](#19-despliegue-vercel-docker-render-streamlit-cloud)
 
 ---
 
@@ -82,7 +83,8 @@ configura la versión vertical.
 
 | Archivo | Responsabilidad |
 |---|---|
-| `app.py` | Interfaz Streamlit (crear video, series, laboratorio de voz, música, calidad, ayuda) |
+| `streamlit_app.py` | Interfaz Streamlit completa (crear video, series, laboratorio de voz, música, calidad, ayuda) |
+| `app.py` | Versión web ligera (WSGI, solo librería estándar) para Vercel: guiones, descripciones y API |
 | `cli.py` | Línea de comandos (`temas`, `guion`, `video`, `serie`, `voces`, `preview`) |
 | `ejemplo_serie.py` | Ejemplo completo: 5 videos largos + Shorts + miniaturas + descripciones + inglés |
 | `config.py` | Rutas, resoluciones, límites de duración, `.env`, aviso Made for Kids |
@@ -142,7 +144,7 @@ pip install -r requirements.txt
 cp .env.example .env        # Windows: copy .env.example .env
 
 # 5) Arrancar la interfaz
-streamlit run app.py
+streamlit run streamlit_app.py
 ```
 
 Se abrirá `http://localhost:8501`.
@@ -612,6 +614,59 @@ Cada carpeta exportada incluye `LEEME_MADE_FOR_KIDS.txt` y cada `.md` recuerda:
 
 ```bash
 pip install pytest
-pytest -q                          # 45 pruebas offline (~3 s)
+pytest -q                          # 47 pruebas offline (~5 s)
 EVR_TEST_RENDER=1 pytest -q        # + render completo de un Short con control de calidad
 ```
+
+---
+
+## 19. Despliegue (Vercel, Docker, Render, Streamlit Cloud)
+
+La aplicación tiene **dos puntos de entrada**:
+
+| Archivo | Qué es | Dónde se despliega |
+|---|---|---|
+| `streamlit_app.py` | App **completa**: videos, Shorts, miniaturas, series, voz, música, control de calidad | Local, Docker, Render, Railway, Streamlit Community Cloud, Hugging Face Spaces |
+| `app.py` | Web **ligera** (WSGI, solo librería estándar): guiones con timestamps, títulos, descripciones, tags y API JSON | **Vercel** (o cualquier servidor WSGI) |
+
+### ¿Por qué no se puede renderizar video en Vercel?
+
+Vercel ejecuta **funciones serverless**: tienen un tiempo máximo de ejecución, no mantienen el
+servidor WebSocket que necesita Streamlit y limitan el tamaño del paquete (las dependencias de
+video — Streamlit, MoviePy, FFmpeg, pandas… — ocupan ~470 MB). Por eso en Vercel se publica solo
+la web ligera, y la producción de videos se hace en un servidor con CPU (Docker/Render) o en local.
+
+> Si Vercel mostraba `Error: Found app.py but it does not export a top-level "app", "application",
+> or "handler" variable`, era porque `app.py` contenía la interfaz Streamlit. Ahora la interfaz está en
+> `streamlit_app.py` y `app.py` exporta la variable WSGI `app` que Vercel espera.
+
+### Vercel (web ligera)
+
+1. Importa el repositorio en Vercel (*Add New → Project*). **Framework Preset: Other**.
+   No hace falta *Build Command* ni variables de entorno.
+2. `vercel.json` enruta todas las rutas a `app.py` con el runtime `@vercel/python`.
+3. `.vercelignore` excluye `requirements.txt` y los módulos de video, así Vercel no instala nada
+   (el paquete pesa ~300 KB).
+4. Rutas: `/` (formulario), `/api/temas`, `/api/guion?tema=colores&idioma=en&formato=short`,
+   `/api/guion.md?...`, `/api/salud`.
+
+Prueba local de la web ligera, sin instalar nada: `python app.py` → <http://localhost:8000>.
+
+### Docker (app completa)
+
+```bash
+docker build -t evr-kids .
+docker run -p 8501:8501 --env-file .env -v "$PWD/salida:/app/salida" evr-kids
+# abre http://localhost:8501
+```
+
+### Render.com (app completa)
+
+`render.yaml` ya está listo: *New → Blueprint* → selecciona el repositorio. Usa un plan con al
+menos 2 GB de RAM (el render de video consume CPU y memoria). Las claves van en *Environment*.
+
+### Streamlit Community Cloud (app completa)
+
+*New app* → repositorio → **Main file path: `streamlit_app.py`**. `requirements.txt` y
+`packages.txt` (fuentes) se instalan solos; las claves van en *Settings → Secrets* con el mismo
+nombre que en `.env`. Ten en cuenta que los recursos gratuitos son limitados: usa 720p para renderizar.

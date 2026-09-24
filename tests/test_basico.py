@@ -118,3 +118,38 @@ def test_render_short_completo(tmp_path):
                            perfiles_voz={"es": PerfilVoz(motor="prueba", voz="tono")})
     r = producir_video("colores", "es", "short", cfg, carpeta_trabajo=tmp_path)
     assert r.informe.aprobado, r.informe.a_markdown()
+
+
+def _llamar_wsgi(ruta: str, query: str = ""):
+    from wsgiref.util import setup_testing_defaults
+
+    import app as web
+
+    entorno: dict = {}
+    setup_testing_defaults(entorno)
+    entorno.update(PATH_INFO=ruta, QUERY_STRING=query)
+    estado: list[str] = []
+    cuerpo = b"".join(web.app(entorno, lambda s, h: estado.append(s)))
+    return estado[0], cuerpo.decode("utf-8")
+
+
+def test_app_web_exporta_app_para_vercel():
+    import app as web
+
+    assert callable(web.app) and web.application is web.app
+    estado, html = _llamar_wsgi("/", "tema=colores&idioma=en&formato=short")
+    assert estado == "200 OK" and "What color" in html
+    estado, cuerpo = _llamar_wsgi("/api/guion", "tema=animales_granja&idioma=es")
+    assert estado == "200 OK" and '"timestamps"' in cuerpo
+    assert _llamar_wsgi("/api/temas")[0] == "200 OK"
+    assert _llamar_wsgi("/api/guion", "tema=inexistente")[0].startswith("400")
+    assert _llamar_wsgi("/nada")[0].startswith("404")
+
+
+def test_app_web_no_importa_dependencias_pesadas():
+    import subprocess
+
+    raiz = Path(__file__).resolve().parents[1]
+    codigo = ("import sys, app; pesados = [m for m in ('numpy', 'PIL', 'streamlit', 'moviepy') "
+              "if m in sys.modules]; assert not pesados, pesados")
+    subprocess.run([sys.executable, "-S", "-c", codigo], cwd=raiz, check=True)

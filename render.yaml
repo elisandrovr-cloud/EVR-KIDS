@@ -1,0 +1,10 @@
+# Render.com: despliegue de la app completa con Docker (plan con ≥ 2 GB de RAM recomendado)
+services:
+  - type: web
+    name: evr-kids
+    runtime: docker
+    plan: standard
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: EVR_RESOLUCION
+        value: 720p

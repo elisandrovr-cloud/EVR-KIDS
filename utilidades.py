@@ -12,8 +12,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+try:
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+except ImportError:  # entorno web ligero (Vercel): solo se usan las funciones de texto
+    np = Image = ImageDraw = ImageFilter = ImageFont = None  # type: ignore[assignment]
 
 from config import DIR_FUENTES
 
