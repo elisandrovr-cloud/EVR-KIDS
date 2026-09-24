@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+salida/
+trabajo/
+cache/
+datos/perfiles_voz.json
+*.log
+.streamlit/secrets.toml
+*TEMP_MPY*
+*_tmp_audio.m4a

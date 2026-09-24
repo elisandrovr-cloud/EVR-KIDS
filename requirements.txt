@@ -1,0 +1,22 @@
+# --- Núcleo (obligatorio) ---
+streamlit>=1.50
+moviepy>=2.1,<3
+imageio-ffmpeg>=0.5
+pillow>=10.1
+numpy>=1.24
+pydub>=0.25
+audioop-lts>=0.2; python_version >= "3.13"
+edge-tts>=6.1
+requests>=2.31
+python-dotenv>=1.0
+deep-translator>=1.11
+gTTS>=2.5
+
+# --- Opcionales (descomenta lo que uses) ---
+# anthropic>=0.60          # Guiones de temas personalizados con Claude
+# boto3>=1.34              # Amazon Polly
+# torch>=2.2               # Stable Diffusion local (instala la build CUDA de pytorch.org)
+# diffusers>=0.30          # Stable Diffusion local
+# transformers>=4.40
+# accelerate>=0.30
+# safetensors>=0.4
