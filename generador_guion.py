@@ -339,9 +339,11 @@ def generar_guion_largo(tema: Tema, idioma: str = "es", variante: str = "nombres
     return g
 
 
-def generar_guion_short(tema: Tema, idioma: str = "es", texto_cta: str = "", semilla: int = 7) -> Guion:
+def generar_guion_short(tema: Tema, idioma: str = "es", texto_cta: str = "", semilla: int = 7,
+                        variante: str = "nombres") -> Guion:
     tx = T[idioma]
-    rnd = random.Random(f"{tema.clave}-short-{semilla}")
+    # la variante cambia la selección de elementos (series que repiten tema no repiten Short)
+    rnd = random.Random(f"{tema.clave}-short-{semilla}" + ("" if variante == "nombres" else f"-{variante}"))
     todos = list(tema.items)
     respuesta = next((i for i in todos if i.clave == tema.gancho_item), todos[0])
     resto = [i for i in todos if i is not respuesta]
@@ -350,7 +352,7 @@ def generar_guion_short(tema: Tema, idioma: str = "es", texto_cta: str = "", sem
         respuesta = items[-1]
     else:
         items = rnd.sample(resto, min(4, len(resto))) + [respuesta]  # la respuesta al final (retención)
-    g = Guion(tema.clave, tema.titulo(idioma), idioma, "short", "short",
+    g = Guion(tema.clave, tema.titulo(idioma), idioma, "short", variante,
               palabras_clave=list(tema.palabras_clave), elementos=[i.to_dict() for i in items],
               prompt_portada=f"{tema.titulo_en} for kids")
     esc = g.escenas
@@ -391,7 +393,7 @@ def generar_guion(tema: Tema | str, idioma: str = "es", formato: str = "largo", 
             )
         tema = encontrado
     if formato == "short":
-        return generar_guion_short(tema, idioma, texto_cta)
+        return generar_guion_short(tema, idioma, texto_cta, variante=variante)
     return generar_guion_largo(tema, idioma, variante)
 
 

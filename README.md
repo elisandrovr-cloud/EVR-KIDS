@@ -39,6 +39,7 @@ emociones…), listos para subir a YouTube como contenido **Made for Kids**:
 17. [Rendimiento y solución de problemas](#17-rendimiento-y-solución-de-problemas)
 18. [Pruebas](#18-pruebas)
 19. [Despliegue (Vercel, Docker, Render, Streamlit Cloud)](#19-despliegue-vercel-docker-render-streamlit-cloud)
+20. [Generar videos en la nube con GitHub Actions (sin instalar nada)](#20-generar-videos-en-la-nube-con-github-actions-sin-instalar-nada)
 
 ---
 
@@ -670,3 +671,27 @@ menos 2 GB de RAM (el render de video consume CPU y memoria). Las claves van en 
 *New app* → repositorio → **Main file path: `streamlit_app.py`**. `requirements.txt` y
 `packages.txt` (fuentes) se instalan solos; las claves van en *Settings → Secrets* con el mismo
 nombre que en `.env`. Ten en cuenta que los recursos gratuitos son limitados: usa 720p para renderizar.
+
+---
+
+## 20. Generar videos en la nube con GitHub Actions (sin instalar nada)
+
+El repositorio incluye el workflow **`Generar videos`** (`.github/workflows/generar-videos.yml`),
+que produce la serie completa en los servidores de GitHub (gratis en repositorios públicos) y la
+publica como una **Release** descargable.
+
+1. En GitHub abre la pestaña **Actions** → **Generar videos** → **Run workflow**.
+2. Elige categoría, número de videos, formatos (largo/Short), idiomas, resolución y nombre.
+3. Cada tema se renderiza **en paralelo** en su propia máquina (≈ 15–25 min para 5 temas en 1080p,
+   con voz real de edge-tts; si edge-tts falla se usa gTTS automáticamente).
+4. Al terminar, en **Releases** aparece `videos-N` con:
+   - cada `.mp4` y su miniatura `.jpg` para descargar directamente,
+   - un `.zip` por video con descripción, timestamps, `.srt`, guion, informe de calidad y créditos,
+   - `resumen_serie.md` y el aviso *Made for Kids*.
+   La serie completa también queda 30 días como artefacto de la ejecución.
+
+Para las claves opcionales (ElevenLabs, Stability, etc.) añade *Secrets* en
+*Settings → Secrets and variables → Actions* y pásalas como `env:` en el paso *Producir video*.
+
+Internamente cada máquina ejecuta `python cli.py serie <categoría> -n N --solo <número>` y el último
+paso une todo con `python cli.py consolidar <carpeta>`.

@@ -1,0 +1,182 @@
+# Genera series de videos en los servidores de GitHub (gratis en repos públicos)
+# y los publica como una Release descargable.
+#
+# Uso: pestaña "Actions" → "Generar videos" → "Run workflow" → elige opciones.
+name: Generar videos
+
+on:
+  workflow_dispatch:
+    inputs:
+      categoria:
+        description: "Categoría de la serie"
+        type: choice
+        default: animales
+        options: [animales, colores, numeros, formas, emociones, hablar, comida, vehiculos, cuerpo, naturaleza, mixta]
+      cantidad:
+        description: "Número de videos (temas) de la serie (1-20)"
+        type: string
+        default: "5"
+      formatos:
+        description: "Formatos"
+        type: choice
+        default: "largo short"
+        options: ["largo short", "largo", "short"]
+      idiomas:
+        description: "Idiomas (doblaje)"
+        type: choice
+        default: "es en"
+        options: ["es en", "es", "en"]
+      resolucion:
+        description: "Resolución de los videos largos"
+        type: choice
+        default: "1080p"
+        options: ["1080p", "720p"]
+      nombre:
+        description: "Nombre de la serie (vacío = automático)"
+        type: string
+        default: ""
+      forzar:
+        description: "Exportar aunque falle el control de calidad"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generar-videos-${{ github.run_id }}
+
+jobs:
+  plan:
+    name: Planificar serie
+    runs-on: ubuntu-latest
+    outputs:
+      numeros: ${{ steps.plan.outputs.numeros }}
+      nombre: ${{ steps.plan.outputs.nombre }}
+      carpeta: ${{ steps.plan.outputs.carpeta }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - id: plan
+        env:
+          CATEGORIA: ${{ inputs.categoria }}
+          CANTIDAD: ${{ inputs.cantidad }}
+          NOMBRE: ${{ inputs.nombre }}
+        run: |
+          python -S - <<'PY'
+          import json, os
+          from contenido_infantil import NOMBRES_CATEGORIAS
+          from utilidades import slug
+          n = int(os.environ["CANTIDAD"])
+          if not 1 <= n <= 20:
+              raise SystemExit("La cantidad debe estar entre 1 y 20")
+          cat = os.environ["CATEGORIA"]
+          nombre = os.environ["NOMBRE"].strip() or f"Serie {NOMBRES_CATEGORIAS.get(cat, cat)} ({n} videos)"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"numeros={json.dumps(list(range(1, n + 1)))}\n")
+              f.write(f"nombre={nombre}\n")
+              f.write(f"carpeta={slug(nombre)}\n")
+          print(nombre, "->", n, "videos")
+          PY
+
+  video:
+    name: Video ${{ matrix.numero }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        numero: ${{ fromJson(needs.plan.outputs.numeros) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Fuentes (texto y emojis)
+        run: sudo apt-get update -q && sudo apt-get install -y -q fonts-dejavu-core fonts-noto-color-emoji
+      - name: Dependencias
+        run: pip install -r requirements.txt
+      - name: Producir video ${{ matrix.numero }} (${{ inputs.formatos }} · ${{ inputs.idiomas }})
+        env:
+          NOMBRE: ${{ needs.plan.outputs.nombre }}
+          FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
+        run: |
+          python cli.py serie "${{ inputs.categoria }}" -n "${{ inputs.cantidad }}" \
+            --solo ${{ matrix.numero }} --nombre "$NOMBRE" \
+            --formatos ${{ inputs.formatos }} --idiomas ${{ inputs.idiomas }} \
+            --resolucion "${{ inputs.resolucion }}" --preset medium $FORZAR
+      - name: Subir resultado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parte-${{ matrix.numero }}
+          path: salida/${{ needs.plan.outputs.carpeta }}
+          retention-days: 7
+          if-no-files-found: warn
+
+  publicar:
+    name: Publicar Release
+    needs: [plan, video]
+    if: ${{ always() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Dependencias
+        run: pip install -r requirements.txt
+      - name: Reunir las partes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: parte-*
+          merge-multiple: true
+          path: salida/${{ needs.plan.outputs.carpeta }}
+      - name: Resumen de la serie
+        env:
+          NOMBRE: ${{ needs.plan.outputs.nombre }}
+          CARPETA: ${{ needs.plan.outputs.carpeta }}
+        run: |
+          python cli.py consolidar "salida/$CARPETA" --nombre "$NOMBRE"
+          cat "salida/$CARPETA/resumen_serie.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preparar archivos
+        env:
+          CARPETA: ${{ needs.plan.outputs.carpeta }}
+        run: |
+          mkdir -p dist
+          raiz="salida/$CARPETA"
+          # cada video: .mp4 y miniatura .jpg sueltos + .zip con todo (descripción, timestamps, srt, guion, calidad)
+          for d in "$raiz"/*/*/*/; do
+            [ -d "$d" ] || continue
+            n=$(basename "$d")
+            cp "$d"/*.mp4 "$d"/*.jpg dist/ 2>/dev/null || true
+            (cd "$d" && zip -q -r "$GITHUB_WORKSPACE/dist/${n}.zip" .)
+          done
+          cp "$raiz/resumen_serie.md" "$raiz/LEEME_MADE_FOR_KIDS.txt" dist/
+          ls -la dist
+          echo "ARCHIVOS=$(ls dist | wc -l)" >> "$GITHUB_ENV"
+      - name: Serie completa (artefacto)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.carpeta }}
+          path: salida/${{ needs.plan.outputs.carpeta }}
+          retention-days: 30
+      - name: Crear Release
+        if: ${{ env.ARCHIVOS != '2' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOMBRE: ${{ needs.plan.outputs.nombre }}
+          CARPETA: ${{ needs.plan.outputs.carpeta }}
+        run: |
+          etiqueta="videos-${{ github.run_number }}"
+          gh release create "$etiqueta" dist/* \
+            --target "${{ github.sha }}" \
+            --title "🎈 $NOMBRE (#${{ github.run_number }})" \
+            --notes-file "salida/$CARPETA/resumen_serie.md"
+          echo "### 📦 Descarga: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$etiqueta" >> "$GITHUB_STEP_SUMMARY"

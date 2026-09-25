@@ -174,7 +174,8 @@ def _contar(texto: str) -> int:
 def generar_metadatos(guion, categoria: str = "", semilla: int = 0, extra_tags: list[str] | None = None) -> Metadatos:
     idioma = guion.idioma if guion.idioma in TEXTOS else "es"
     tx = TEXTOS[idioma]
-    rnd = random.Random(f"{guion.tema_clave}-{guion.formato}-{semilla}")
+    extra = "" if guion.variante in ("nombres", "short") else f"-{guion.variante}"
+    rnd = random.Random(f"{guion.tema_clave}-{guion.formato}-{semilla}{extra}")
     emoji = EMOJIS_CATEGORIA.get(categoria, "✨")
     T = guion.titulo
     t = T[:1].lower() + T[1:] if idioma == "es" else T.lower()

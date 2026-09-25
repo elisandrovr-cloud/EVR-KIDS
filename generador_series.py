@@ -25,7 +25,7 @@ from config import AVISO_MADE_FOR_KIDS, DIR_SALIDA, DIR_TRABAJO
 from contenido_infantil import CATEGORIAS, NOMBRES_CATEGORIAS, TEMAS
 from generador_guion import VARIANTES
 from produccion import ConfigProduccion, corregir, escribir_aviso_made_for_kids, exportar, producir_video, resumen_resultado
-from utilidades import guardar_json, slug
+from utilidades import guardar_json, leer_json, slug
 
 
 @dataclass
@@ -91,7 +91,10 @@ def planificar_serie(categoria: str | list[str], n: int) -> list[PlanVideo]:
 def generar_serie(categoria: str | list[str], n: int, cfg: ConfigProduccion, formatos: list[str] | None = None,
                   idiomas: list[str] | None = None, nombre: str | None = None, exportar_auto: bool = True,
                   forzar_exportacion: bool = False, corregir_auto: bool = True,
-                  progreso: Callable[[EventoProgreso], None] | None = None) -> ResultadoSerie:
+                  progreso: Callable[[EventoProgreso], None] | None = None,
+                  solo: list[int] | None = None) -> ResultadoSerie:
+    """Genera la serie. `solo` limita la producción a esos números del plan (para repartir la serie
+    entre varias máquinas; luego `consolidar_serie` une los resultados)."""
     formatos = formatos or ["largo", "short"]
     idiomas = idiomas or ["es"]
     plan = planificar_serie(categoria, n)
@@ -103,7 +106,7 @@ def generar_serie(categoria: str | list[str], n: int, cfg: ConfigProduccion, for
     res = ResultadoSerie(nombre, raiz, plan)
     guardar_json(raiz / "plan_serie.json", [asdict(p) for p in plan])
     gestor = cfg.gestor_imagenes()  # un solo gestor: las imágenes se reutilizan entre idiomas y formatos
-    pasos = [(p, f, i) for p in plan for f in formatos for i in idiomas]
+    pasos = [(p, f, i) for p in plan for f in formatos for i in idiomas if not solo or p.numero in solo]
     t0 = time.time()
 
     for k, (p, formato, idioma) in enumerate(pasos):
@@ -131,9 +134,29 @@ def generar_serie(categoria: str | list[str], n: int, cfg: ConfigProduccion, for
         res.segundos = time.time() - t0
         (raiz / "resumen_serie.md").write_text(res.a_markdown(), encoding="utf-8")
         guardar_json(raiz / "serie.json", {"nombre": nombre, "videos": res.videos, "errores": res.errores})
+        if solo and res.errores:
+            guardar_json(raiz / f"errores_{'-'.join(map(str, solo))}.json", res.errores)
 
     if progreso:
         progreso(EventoProgreso(1.0, len(pasos), len(pasos), n, "", "", "Serie completada", 1.0))
+    return res
+
+
+def consolidar_serie(raiz: Path, nombre: str | None = None) -> ResultadoSerie:
+    """Une en un solo resumen los videos exportados en `raiz` (p. ej. producidos en paralelo)."""
+    raiz = Path(raiz)
+    plan = [PlanVideo(**p) for p in (leer_json(raiz / "plan_serie.json", []) or [])]
+    res = ResultadoSerie(nombre or raiz.name.replace("-", " ").title(), raiz, plan)
+    for ruta in sorted(raiz.glob("*/*/*/resumen.json")):
+        v = leer_json(ruta, {}) or {}
+        v["exportado_en"] = str(ruta.parent)
+        res.videos.append(v)
+    for ruta in sorted(raiz.glob("errores_*.json")):
+        res.errores += leer_json(ruta, []) or []
+    res.videos.sort(key=lambda v: (v.get("numero", 0), v.get("formato", ""), v.get("idioma", "")))
+    (raiz / "resumen_serie.md").write_text(res.a_markdown(), encoding="utf-8")
+    guardar_json(raiz / "serie.json", {"nombre": res.nombre, "videos": res.videos, "errores": res.errores})
+    escribir_aviso_made_for_kids(raiz)
     return res
 
 

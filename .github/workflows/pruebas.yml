@@ -1,0 +1,23 @@
+name: Pruebas
+
+on:
+  push:
+    paths-ignore: ["**.md"]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: sudo apt-get update -q && sudo apt-get install -y -q fonts-dejavu-core fonts-noto-color-emoji
+      - run: pip install -r requirements.txt pytest
+      - name: Pruebas (incluye el render completo de un Short)
+        env:
+          EVR_TEST_RENDER: "1"
+        run: pytest -q

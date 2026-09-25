@@ -393,6 +393,27 @@ _MOTORES: dict[str, Callable[[str, PerfilVoz, Path], Path]] = {
 # ---------------------------------------------------------------------------
 # API pública
 # ---------------------------------------------------------------------------
+# Acentos de gTTS equivalentes a cada locale de edge/Azure (para el respaldo automático)
+_TLD_GTTS = {"es-MX": "com.mx", "es-US": "com.mx", "es-CO": "com.mx", "es-AR": "com.mx", "es-ES": "es",
+             "en-US": "us", "en-GB": "co.uk", "en-AU": "com.au"}
+
+
+def _sintetizar_con_respaldo(texto: str, perfil: PerfilVoz, destino: Path) -> Path:
+    """Usa el motor del perfil; si falla (red, cuota, servicio caído) recurre a gTTS.
+
+    Desactívalo con EVR_TTS_RESPALDO=no. El motor "prueba" nunca usa respaldo.
+    """
+    try:
+        return _MOTORES[perfil.motor](texto, perfil, destino)
+    except Exception as e:  # noqa: BLE001
+        if perfil.motor in ("gtts", "prueba") or env("EVR_TTS_RESPALDO", "si").lower() in ("no", "0", "false"):
+            raise
+        locale = "-".join(perfil.voz.split("-")[:2])
+        respaldo = perfil.variante(motor="gtts", voz=_TLD_GTTS.get(locale, "com"), tono_extra=perfil.tono_extra)
+        print(f"[tts] {perfil.motor} falló ({str(e)[:120]}); usando gTTS como respaldo")
+        return _gtts(texto, respaldo, destino)
+
+
 def sintetizar(texto: str, perfil: PerfilVoz, destino: Path | None = None, usar_cache: bool = True) -> Path:
     """Genera la narración (WAV) de un texto, con pausas entre frases y ganancia relativa."""
     from pydub import AudioSegment
@@ -407,7 +428,7 @@ def sintetizar(texto: str, perfil: PerfilVoz, destino: Path | None = None, usar_
         for i, frase in enumerate(frases):
             parcial = carpeta / f"{perfil.clave_cache(frase)}.mp3"
             if not (usar_cache and parcial.exists() and parcial.stat().st_size > 200):
-                _MOTORES[perfil.motor](frase, perfil, parcial)
+                _sintetizar_con_respaldo(frase, perfil, parcial)
             seg = cargar_audio(parcial).set_frame_rate(44100).set_channels(2)
             seg = recortar_silencios_extremos(seg)
             if i:

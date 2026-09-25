@@ -91,6 +91,11 @@ def main(argv=None) -> int:
     s.add_argument("--formatos", nargs="+", default=["largo", "short"])
     s.add_argument("--idiomas", nargs="+", default=["es"])
     s.add_argument("--nombre")
+    s.add_argument("--solo", nargs="+", type=int, help="Producir solo estos números del plan (trabajo en paralelo)")
+
+    co = sub.add_parser("consolidar", help="Une el resumen de una serie producida en paralelo")
+    co.add_argument("carpeta", help="Carpeta de la serie dentro de salida/")
+    co.add_argument("--nombre")
 
     vz = sub.add_parser("voces", help="Lista voces del catálogo")
     vz.add_argument("--motor")
@@ -135,6 +140,18 @@ def main(argv=None) -> int:
         print(f"Vista previa: {ruta}")
         return 0
 
+    if a.cmd == "consolidar":
+        from pathlib import Path
+
+        from config import DIR_SALIDA
+        from generador_series import consolidar_serie
+
+        carpeta = Path(a.carpeta)
+        carpeta = carpeta if carpeta.is_absolute() or carpeta.exists() else DIR_SALIDA / carpeta
+        r = consolidar_serie(carpeta, a.nombre)
+        print(r.a_markdown())
+        return 0
+
     cfg = _cfg(a)
     if a.cmd == "video":
         from generador_guion import resolver_tema
@@ -167,7 +184,7 @@ def main(argv=None) -> int:
             _progreso(ev.fraccion_total, f"[{ev.paso}/{ev.pasos_totales}] {ev.mensaje}")
 
         r = generar_serie(a.categoria, a.n, cfg, a.formatos, a.idiomas, a.nombre, forzar_exportacion=a.forzar,
-                          progreso=prog)
+                          progreso=prog, solo=a.solo)
         print("\n\n" + r.a_markdown())
         print(arbol_carpetas(r.carpeta))
         return 0 if not r.errores else 1

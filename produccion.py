@@ -196,7 +196,15 @@ def exportar(res: ResultadoVideo, raiz: Path | None = None, forzar: bool = False
             encoding="utf-8")
     escribir_aviso_made_for_kids(raiz)
     res.exportado_en = destino
+    # resumen por video: permite consolidar series generadas en paralelo (GitHub Actions)
+    guardar_json(destino / "resumen.json", {"numero": _numero_de(res.nombre), **resumen_resultado(res),
+                                            "exportado_en": str(destino.relative_to(raiz))})
     return destino
+
+
+def _numero_de(nombre: str) -> int:
+    pref = nombre.split("_", 1)[0]
+    return int(pref) if pref.isdigit() else 0
 
 
 def escribir_aviso_made_for_kids(raiz: Path) -> None:
