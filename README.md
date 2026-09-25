@@ -680,11 +680,23 @@ El repositorio incluye el workflow **`Generar videos`** (`.github/workflows/gene
 que produce la serie completa en los servidores de GitHub (gratis en repositorios públicos) y la
 publica como una **Release** descargable.
 
-1. En GitHub abre la pestaña **Actions** → **Generar videos** → **Run workflow**.
+**Opción A: con un formulario (la más fácil, también desde el móvil)**
+
+1. Abre <https://github.com/elisandrovr-cloud/EVR-KIDS/issues/new?template=generar-videos.yml>
+   (o **Issues → New issue → 🎬 Generar videos**).
+2. Elige categoría, número de videos, formatos, idiomas y resolución, y pulsa **Submit new issue**.
+3. En ese Issue aparecerá un comentario "⏳ Generando…" y, al terminar, otro con el **enlace de
+   descarga**; el Issue se cierra solo. Solo el dueño del repositorio (o colaboradores) puede lanzarlo.
+
+**Opción B: con el botón de Actions**
+
+1. Abre <https://github.com/elisandrovr-cloud/EVR-KIDS/actions/workflows/generar-videos.yml>
+   (hay que iniciar sesión). Arriba a la derecha aparece **Run workflow** (en el móvil, usa
+   "Ver versión de escritorio" del navegador si no lo ves).
 2. Elige categoría, número de videos, formatos (largo/Short), idiomas, resolución y nombre.
 3. Cada tema se renderiza **en paralelo** en su propia máquina (≈ 15–25 min para 5 temas en 1080p,
    con voz real de edge-tts; si edge-tts falla se usa gTTS automáticamente).
-4. Al terminar, en **Releases** aparece `videos-N` con:
+4. Al terminar, en **Releases** (<https://github.com/elisandrovr-cloud/EVR-KIDS/releases>) aparece `videos-N` con:
    - cada `.mp4` y su miniatura `.jpg` para descargar directamente,
    - un `.zip` por video con descripción, timestamps, `.srt`, guion, informe de calidad y créditos,
    - `resumen_serie.md` y el aviso *Made for Kids*.
